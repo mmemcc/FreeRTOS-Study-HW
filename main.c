@@ -20,36 +20,56 @@ void vApplicationIdleHook( void )
     usleep( 15000 );
 }
 
-// Task 1 정의
-void vTask1( void *pvParameters )
-{
-	const char *pcTaskName = "Task 1: 1 sec period\r\n";
 
-	for( ;; )
-	{
-		console_print( pcTaskName );
+// Task "Sleep"
+static void prvTaskHello( void * _ )
+{
+    while ( 1 )
+    {
+        console_print( "zzzzzzz\n" );
         vTaskDelay( 1000 );
-	}
-}
-// Task 2 정의
-void vTask2( void *pvParameters )
-{
-	const char *pcTaskName = "Task 2: 2 sec period\r\n";
-
-	for( ;; )
-	{
-		console_print( pcTaskName );
-        vTaskDelay( 2000 );
-	}
+    }
 }
 
-int main( void )
-{
-    console_init(); 
 
-	xTaskCreate( vTask1, "Task 1", configMINIMAL_STACK_SIZE, NULL, 1, NULL );
-	xTaskCreate( vTask2, "Task 2", configMINIMAL_STACK_SIZE, NULL, 1, NULL );
-    
-	vTaskStartScheduler();
-	for( ;; );
+// Task "Ring"
+static void prvTaskRing( void *t_arg )
+{
+    TaskHandle_t l_task_id = * ( TaskHandle_t * ) t_arg;
+    while ( 1 )
+    {
+        vTaskDelay( 5000 );
+        console_print( "알람! 알람! 알람!\n" );
+        vTaskResume( l_task_id );
+    }
+}
+
+
+// Task "PutOff"
+static void prvTaskSleep( void * _ )
+{
+    while ( 1 )
+    {
+        vTaskSuspend( NULL );
+        console_print( "5분만..\n" );
+    }
+}
+
+
+int main()
+{
+    // Init output console
+    console_init();
+
+    TaskHandle_t l_handle;
+
+    // Three tasks
+    xTaskCreate( prvTaskHello, "Sleep", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 4, NULL );
+    xTaskCreate( prvTaskSleep, "PutOff", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 3, &l_handle );
+    xTaskCreate( prvTaskRing, "Ring", configMINIMAL_STACK_SIZE, &l_handle, configMAX_PRIORITIES - 2, NULL );
+
+    // Start scheduler
+    vTaskStartScheduler();
+
+    return 0;
 }
