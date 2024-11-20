@@ -1,76 +1,86 @@
-/*
- * FreeRTOS V202111.00
- * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * https://www.FreeRTOS.org
- * https://github.com/FreeRTOS
- *
- */
-
-/*-----------------------------------------------------------
-* Example console I/O wrappers.
-*----------------------------------------------------------*/
-
-#include <stdarg.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
 
 #include <FreeRTOS.h>
 #include <semphr.h>
 
 #include <console.h>
+#include <command.h>
+#include <error.h>
 
-SemaphoreHandle_t xStdioMutex;
+static const char hash_prompt[]  = "\033[1;30m # ";
 
-void console_init( void )
+static const char backspace_char = '\b';
+static const char space_char     = ' ';
+static const char cr_char        = '\r';
+static const char nl_char        = '\n';
+
+static const char * user_prompt  = "minji";
+
+void console_prompt(void)
 {
-    xStdioMutex = xSemaphoreCreateMutex();
+    static const char col_start[]    = "\033[1;32m";
+    static const char col_end[]      = "\033[0m";
+
+    console_printf(col_start);
+    console_printf(user_prompt);
+    console_printf(hash_prompt);
+    console_printf(col_end);
+
+    fflush(stdout);
 }
 
-void console_print( const char * fmt,
-                    ... )
+void console_printf( const char * fmt, ... )
 {
     va_list vargs;
 
     va_start( vargs, fmt );
 
-    xSemaphoreTake( xStdioMutex, portMAX_DELAY );
+    xSemaphoreTake( xConsoleMutex, portMAX_DELAY );
 
     vprintf( fmt, vargs );
-
-    xSemaphoreGive( xStdioMutex );
+    
+    xSemaphoreGive( xConsoleMutex );
 
     va_end( vargs );
+
 }
 
-void console_scanf( const char * fmt,
-                    ... )
+void vTaskInput(void *pvParameters) {
+    char input[MAX_INPUT_LENGTH];
+    for (;;) {
+        if (xSemaphoreTake(xInputMutex, portMAX_DELAY) == pdTRUE) {
+            char *input_char = NULL;
+            input_char = fgets(input, MAX_INPUT_LENGTH, stdin);
+            
+            if ( input_char != NULL) {
+                input_char[strcspn(input_char, "\n")] = '\0';
+                
+                xSemaphoreGive(xInputMutex);
+                execute_command(input_char);
+            }
+            xSemaphoreGive(xInputMutex);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void console_init(void)
 {
-    va_list vargs;
+    xConsoleMutex = xSemaphoreCreateMutex();
+    xInputMutex = xSemaphoreCreateMutex();
 
-    va_start( vargs, fmt );
+    console_prompt();
+    
 
-    xSemaphoreTake( xStdioMutex, portMAX_DELAY );
+    if (xTaskCreate(vTaskInput, "Input Task", configMINIMAL_STACK_SIZE, NULL, 1, &xConsoleTaskHandle) != pdPASS) {
+        console_printf("Error: Failed to create vTaskInput\n");
+    }
 
-    scanf( fmt, vargs );
-
-    xSemaphoreGive( xStdioMutex );
-
-    va_end( vargs );
 }
+
+
+
+
+

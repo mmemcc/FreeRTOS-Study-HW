@@ -8,6 +8,13 @@
         "process_task.h": "c",
         "task.h": "c",
         "event_groups.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "stdbool.h": "c",
+        "error.h": "c",
+        "semphr.h": "c",
+        "freertos.h": "c",
+        "command.h": "c",
+        "unistd.h": "c",
+        "stdio.h": "c"
     }
 }
